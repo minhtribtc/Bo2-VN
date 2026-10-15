@@ -1310,38 +1310,6 @@ CoD.OptionsSettings.CreateSoundTab = function (SoundTab, LocalClientIndex)
 	-- ========================================================================
 	T(SoundTabButtonList, LocalClientIndex, "VOICE LINES", "voice_lines", "Your character's spoken lines.")
 
-	--  1..8 keep the donor mod's own pack numbering so the two cannot drift.
-	--  0 = DEFAULT plays pack 1 (v2.3.4) - the old stock spl_hit_alert it tried
-	--  to play before was silent on four of six maps and its payload cannot be
-	--  extracted with this project's tooling; see quality_of_life.gsc's
-	--  zmqol_play_feedback_sound() for the full measurement. 9 = NO SOUND
-	--  silences the marker entirely.
-	local MarkerPacks = {
-		{ "DEFAULT",      0 },
-		{ "COLD WAR",     1 },
-		{ "MW 2019",      2 },
-		{ "BLACK OPS 4",  3 },
-		{ "OVERWATCH",    4 },
-		{ "APEX LEGENDS", 5 },
-		{ "8 BIT",        6 },
-		{ "MW CLASSIC",   7 },
-		{ "BLACK OPS 7",  8 },
-		{ "NO SOUND",     9 }
-	}
-
-	C(SoundTabButtonList, LocalClientIndex, "HITMARKER HIT SOUND",  "hit_sound",    "Plays when you hit a zombie.",        MarkerPacks)
-	C(SoundTabButtonList, LocalClientIndex, "HITMARKER KILL SOUND", "kill_sound",   "Plays when you kill a zombie.",       MarkerPacks)
-	C(SoundTabButtonList, LocalClientIndex, "CRITS SOUND",          "crit_sound",   "Extra sound on a headshot or melee kill.", {
-		{ "NO SOUND",    0 },
-		{ "BLACK OPS 7", 1 },
-		{ "MW 2019",     2 }
-	})
-	C(SoundTabButtonList, LocalClientIndex, "DOWNED SOUND",         "downed_sound", "Plays for everyone when a player goes down.", {
-		{ "NO SOUND",     0 },
-		{ "BLACK OPS 4",  1 },
-		{ "COLD WAR",     2 },
-		{ "MW 2019",      3 }
-	})
 
 	return SoundTabContainer
 end
@@ -1510,60 +1478,6 @@ CoD.OptionsSettings.QolChoice = function (ButtonList, LocalClientIndex, Label, D
 	end
 	CoD.OptionsSettings.QolArchive(DvarName)
 	return Selector
-end
-
--- ============================================================================
---  QolMigrateTimers  -  v2.1.3, the GAME TIMER / ROUND TIMER merge
---
---  Runs once, the first time this tab is built on a machine that has never seen
---  hud_timers. It reads the two dvars the old pair of rows wrote - both of which
---  are still sitting in the player's config - and writes the four-way value that
---  means the same thing:
---
---        game  round      hud_timers
---          1     1    ->      1   both
---          1     0    ->      2   game only
---          0     1    ->      3   round only
---          0     0    ->      0   off
---
---  🛑 IT MUST BE IDEMPOTENT, and it is: the migration is skipped the moment
---  hud_timers holds anything at all, and the seta below is what puts it there.
---  A second pass can therefore never re-derive it from a stale hud_timer.
---
---  📝 The GSC does the same derivation in qol_options.gsc::qol_opt_timer_mode()
---  for a player who never opens this menu. Both sides agree on the table above;
---  change one and change the other.
---
---  Everything is inside pcall for the same reason QolArchive is: a dvar read
---  that throws must never be able to stop the tab from being built.
--- ============================================================================
-CoD.OptionsSettings.QolMigrateTimers = function ()
-	pcall(function ()
-		local Cur = UIExpression.DvarString(nil, "hud_timers")
-		if Cur ~= nil and Cur ~= "" then
-			return
-		end
-
-		local function OldOn(Name)
-			local V = UIExpression.DvarString(nil, Name)
-			-- Unset means the player never touched it, and both rows shipped ON.
-			if V == nil or V == "" then
-				return true
-			end
-			return V ~= "0"
-		end
-
-		local Value = 0
-		if OldOn("hud_timer") and OldOn("hud_round_timer") then
-			Value = 1
-		elseif OldOn("hud_timer") then
-			Value = 2
-		elseif OldOn("hud_round_timer") then
-			Value = 3
-		end
-
-		Engine.Exec(nil, "seta hud_timers \"" .. Value .. "\"")
-	end)
 end
 
 -- ============================================================================
@@ -1744,18 +1658,6 @@ CoD.OptionsSettings.CreateQolTab = function (QolTab, LocalClientIndex)
 	-- pitch arithmetic. Do not re-add a spacer here without removing a row.
 
 	-- Gameplay rules.                                                 6 rows
-	-- v1.99.26, user request 2026-08-17.
-	-- v1.99.30: LIVE now, both ways. The claim that used to sit here - that it
-	-- could only take effect next match - was wrong, and the row did nothing at
-	-- all when flipped mid-game. Off hands the machine back to stock's own
-	-- Pack-a-Punch: put the gun in, wait, take it out.
-	T(QolButtons, LocalClientIndex, "INSTANT PAP",        "instant_pap",          "Pack-a-Punch with no wait. Off uses the stock machine.")
-	-- v1.99.39, user request 2026-08-17. Both default ON: each one is behaviour
-	-- the mod already had, so the switch must not change anything until it is
-	-- thrown. BO4 MAX AMMO off is EXACT vanilla - the mod's replacement for
-	-- full_ammo_powerup differs from stock by the single setweaponammoclip line
-	-- the dvar gates, nothing else.
-	T(QolButtons, LocalClientIndex, "BO4 MAX AMMO",       "bo4_max_ammo",         "Max Ammo fills the magazine too. Off needs a reload first.")
 	-- Origins has no ballistic knife in its fastfile at all, so the perk stays
 	-- stock there whatever this is set to. Said in the GSC, not hidden here.
 	-- 🛑 v1.99.48 - the LABEL is now "BETTER WHO'S WHO" (user, 2026-08-18) but
@@ -1785,19 +1687,6 @@ CoD.OptionsSettings.CreateQolTab = function (QolTab, LocalClientIndex)
 	-- GAME 2 now show the same 14 rows.
 	T(QolButtons, LocalClientIndex, "BACKSPEED FIX",      "move_speed",          "Walk backwards and sideways at full speed.")
 
-	-- v1.99.61, user request 2026-08-18. ON by default - the +100 for proning
-	-- at a perk machine is behaviour the mod has always had, so the switch
-	-- changes nothing until it is thrown. OFF is NO prone points anywhere,
-	-- Origins' native 25 included: the user asked for exactly two states, not
-	-- for a 100/25/off ladder. Live both ways; see prone_bonus_monitor() in
-	-- quality_of_life.gsc and origins_change_patch() in zm_tomb\zm_tomb.gsc.
-	T(QolButtons, LocalClientIndex, "PERK BONUS POINTS",  "perk_bonus_points",    "Prone at a perk machine for +100, once per machine.")
-
-	-- v1.99.73, user request 2026-08-19. OFF by default - it is new behaviour,
-	-- and every switch on this tab leaves the mod as it was until thrown.
-	-- Deadshot's stock effect is aim-assist only, so on mouse and keyboard the
-	-- perk does nothing at all; this is what makes it worth buying either way.
-	T(QolButtons, LocalClientIndex, "BETTER DEADSHOT",    "better_deadshot",      "Deadshot doubles bullet headshot damage, on mouse and controller.")
 	-- ========================================================================
 	--  v2.2.0 - BETTER SPEED COLA, directly under BETTER DEADSHOT as asked.
 	--  User, 2026-08-21: *"make speed cola, like black ops 1 zombies, make speed
@@ -1954,93 +1843,13 @@ CoD.OptionsSettings.CreateQolHudTab = function (QolHudTab, LocalClientIndex)
 	local C = CoD.OptionsSettings.QolChoice
 
 	-- HUD elements, and nothing else.                                15 rows
-	T(QolHudButtons, LocalClientIndex, "HUD",               "hud_master",     "Master switch for the whole HUD.")
 	-- v2.14.7, user request (queued as B-CROSSHAIR, asked again 2026-09-06).
 	-- Sits next to HITMARKERS because that row's own description is about the
 	-- crosshair. ENABLED is stock. The GSC half is qol_options.gsc's
 	-- qol_opt_crosshair(), and its banner says why it writes three client dvars.
 	T(QolHudButtons, LocalClientIndex, "CROSSHAIR",         "crosshair",      "The crosshair in the middle of the screen.")
-	T(QolHudButtons, LocalClientIndex, "HITMARKERS",        "hitmarkers",     "Hit and kill markers on your crosshair.")
-	T(QolHudButtons, LocalClientIndex, "ROUND SUMMARY",     "round_summary",  "Stats pop-up after each round.")
-	-- v1.98.0, user request 2026-08-16.
-	T(QolHudButtons, LocalClientIndex, "PERK POP-UP",       "hud_perk_popup", "Icon and name shown when you buy a perk.")
-	-- v1.99.0, user request 2026-08-16.
-	T(QolHudButtons, LocalClientIndex, "POWER-UP TIMERS",   "hud_powerup_timers", "Seconds left under each power-up icon.")
-	-- ========================================================================
-	--  🌟 v2.1.3 - THE TWO TIMER ROWS ARE ONE FOUR-WAY ROW NOW.
-	--
-	--  User, 2026-08-21: *"for the timers remove both of them and turn them it
-	--  into one option called 'GAME TIMERS' and make it cycleable, So it'd be 4
-	--  options 'GAME TIMER', 'ROUND TIMER', 'GAME TIMER + ROUND TIMER', 'OFF'."*
-	--
-	--  🛑 A MERGE CANNOT KEEP BOTH OLD DVARS - a dvar selector writes exactly
-	--  one name - so this row takes a NEW one, hud_timers, and NOBODY'S SAVED
-	--  SETTING IS LOST: QolMigrateTimers below reads the two old archived dvars
-	--  ONCE and writes the matching four-way value. hud_timer and hud_round_timer
-	--  stay registered (an old config line is harmless), they are simply no
-	--  longer what the HUD reads.
-	--
-	--  Values are NOT the display order, on purpose:
-	--        1 = both   2 = game only   3 = round only   0 = off
-	--  1 is "both" because that is what the shipped default hud_timer "1" plus
-	--  hud_round_timer "1" already meant, so the migration is the identity for
-	--  every player on defaults. The user's own order is what the row cycles
-	--  through; addChoice order is what shows, the number behind it is free.
-	-- ========================================================================
-	CoD.OptionsSettings.QolMigrateTimers()
-	C(QolHudButtons, LocalClientIndex, "GAME TIMERS",       "hud_timers",     "Match time and round time, under the round number.", {
-		{ "GAME TIMER",                2 },
-		{ "ROUND TIMER",               3 },
-		{ "GAME TIMER + ROUND TIMER",  1 },
-		{ "OFF",                       0 }
-	})
-	-- 🌟 v2.1.2 - WAS THE TOGGLE "ROUND COUNTER LEFT". User request, 2026-08-21:
-	-- *"rename that to ROUND COUNTER POSITION and make it 2 cycleable options
-	-- LEFT, or RIGHT"*. RIGHT is listed first because it is value 0, the stock
-	-- side and the shipped default, so the row reads the same way round as every
-	-- DISABLED/ENABLED row in this file.
-	-- 🛑 THE DVAR IS STILL hud_round_left. Same call as whoswho_knife, move_speed
-	-- and lod_fix: the label changed, the name in the player's config did not.
-	-- The GSC reads it as a plain 0/1 in three places
-	-- (quality_of_life.gsc:15428, qol_options.gsc:1595 and :1972), and RIGHT=0 /
-	-- LEFT=1 is exactly what the old toggle wrote, so nobody's saved setting
-	-- changes meaning.
-	-- 🌟 v2.1.3 - A THIRD CHOICE, OFF. User, 2026-08-21: *"for the Round
-	-- position thingy on top of the left or right cycleable options, add a third
-	-- 'off' options so you can turn it off entirely."*
-	-- 🛑 OFF IS 2, AND 2 STILL ANCHORS RIGHT. Every reader of this dvar used to
-	-- be a plain `!= 0` test meaning "left", so all three - the two
-	-- zmqol_hud_round_anchor() twins and qol_opt_hud_watcher - now test `== 1`
-	-- instead. Getting that wrong would put the timers on the left whenever the
-	-- counter was switched off. The timers keep their own y; only the round
-	-- number goes, which is what "turn it off" asks for.
-	C(QolHudButtons, LocalClientIndex, "ROUND COUNTER POSITION","hud_round_left", "Which corner the round number sits in, or off entirely.", {
-		{ "RIGHT", 0 },
-		{ "LEFT",  1 },
-		{ "OFF",   2 }
-	})
-	T(QolHudButtons, LocalClientIndex, "HEALTH BAR",        "hud_health_bar", "Your health bar, bottom left.")
-	-- v1.99.1, user request 2026-08-16. Belongs in HUD despite HUD being the
-	-- longest tab: it draws a progress bar and a text line on the HUD, so the
-	-- file's own sorting rule puts it here. 12 pitches, inside the proven 14.5.
-	T(QolHudButtons, LocalClientIndex, "BLEEDOUT BAR",      "hud_bleedout_bar", "Countdown bar shown while you are downed.")
 	T(QolHudButtons, LocalClientIndex, "ZOMBIES REMAINING", "hud_remaining",  "How many zombies are left.")
 	T(QolHudButtons, LocalClientIndex, "ZONE NAME",         "hud_zone",       "Name of the area you are in.")
-	-- v1.99.26, user request 2026-08-17. 13 pitches, inside the proven 14.5.
-	T(QolHudButtons, LocalClientIndex, "COMPASS",           "hud_compass",    "Heading you are facing, top of the screen.")
-	T(QolHudButtons, LocalClientIndex, "VELOCITY METER",    "velocity",       "Your speed. Green, yellow, red.")
-	-- v2.14.16, user request 2026-09-08. 15 rows = 15.0 pitches, the measured
-	-- ceiling (see the note above CreateQolHudTab) - this tab is now FULL. The
-	-- GSC half is scripts/zm/zmqol_subtitles.gsc; the text is one stringtable
-	-- per map inside mod.ff. Default OFF, like every row added after launch.
-	-- v2.14.24 - three-way, user request 2026-09-08. 1 = text only (a config
-	-- holding the old toggle's 1 lands here); 2 = "[Name] " in front of every
-	-- line. Read per line in zmqol_subtitles.gsc, nothing else reads it.
-	C(QolHudButtons, LocalClientIndex, "SUBTITLES",         "hud_subtitles",  "Spoken lines as text at the bottom of the screen. Simultaneous voices stack without covering each other.", {
-		{ "OFF",               0 },
-		{ "SUBTITLES",         1 },
-		{ "SUBTITLES + NAMES", 2 }
-	})
 
 	-- ========================================================================
 	--  v1.99.61 - THE TWO MATCH-START FLASH LINES, user request 2026-08-18.
@@ -2172,10 +1981,6 @@ CoD.OptionsSettings.CreateQolPatchesTab = function (QolPatchesTab, LocalClientIn
 
 	local T = CoD.OptionsSettings.QolToggle
 
-	-- v2.15.45 - ONE row remains of the pair this block used to hold: BACKSPEED
-	-- FIX went back to GAME 1 (row balance, user 2026-09-12) and NO DENIZENS
-	-- arrived from GAME 3 further down. Both dvars unchanged.
-	T(QolPatchesButtons, LocalClientIndex, "NETWORK FRAME FIX", "network_frame_patch", "Solo runs on the console's fixed 100ms network frame instead of PC timing.")
 	-- 🛑 v2.1.2 - GRAPHICS BOOST IS NOT HERE ANY MORE. It moved to the stock
 	-- ADVANCED tab at the user's request, 2026-08-21, where the dvars it
 	-- overwrites already live. Its dvar is unchanged (graphics_boost) and so is
@@ -2193,10 +1998,6 @@ CoD.OptionsSettings.CreateQolPatchesTab = function (QolPatchesTab, LocalClientIn
 
 	-- The legacy / pre-patch restorations.                            5 rows
 	T(QolPatchesButtons, LocalClientIndex, "REMOVE ROUND CAP",    "remove_round_cap",    "Rounds carry on past 255. Off puts the stock cap back.")
-	T(QolPatchesButtons, LocalClientIndex, "24 ZOMBIE SOLO CAP",  "solo_zombie_limit",   "Solo rounds past 5 stop growing the horde, like World at War.")
-	T(QolPatchesButtons, LocalClientIndex, "INSTAKILL ROUNDS",    "instakill_rounds",    "Zombie health overflows at round 163 and resets, so one shot kills. Like Black Ops 1.")
-	T(QolPatchesButtons, LocalClientIndex, "DOUBLE TAP 1.0",      "double_tap_1",        "Double Tap only makes you shoot faster, like World at War and Black Ops 1. No extra damage.")
-	T(QolPatchesButtons, LocalClientIndex, "NO BARRIER ATTACKS",  "no_barrier_attacks",  "Zombies cannot reach through boarded windows.")
 
 
 	-- ========================================================================
@@ -2247,35 +2048,6 @@ CoD.OptionsSettings.CreateQolPatchesTab = function (QolPatchesTab, LocalClientIn
 	--  are the Origins and Mob failsafe replacements that also carry the
 	--  below-world kill the game needs. Nothing runs.
 	-- ========================================================================
-
-	-- ========================================================================
-	--  v2.7.0 - NO LAVA DAMAGE. User, 2026-08-28: *"add an option ... that lets
-	--  you turn off the lava in-game, it'll still obviously be visible on the
-	--  ground and what not, but zombies wont be able to be lit on fire and
-	--  explode once shot/killed, and the player will no longer take damage from
-	--  standing on any pits of lava."* TranZit-family only (Classic TranZit,
-	--  Diner, Farm, Town, Bus Depot). Shown on every map, same as the other
-	--  map-specific rows on this tab (NO BLEEDOUT FIX above).
-	-- ========================================================================
-	T(QolPatchesButtons, LocalClientIndex, "NO LAVA DAMAGE",     "no_lava_damage",      "TranZit maps. The lava still glows, but it stops burning you and the zombies.")
-
-	-- ========================================================================
-	--  v2.15.45 - NO DENIZENS MOVED HERE FROM GAME 3. Same user request as the
-	--  BACKSPEED FIX move above (2026-09-12): GAME 2 gave a row to GAME 1 and
-	--  takes this one from GAME 3, so GAME 1 and GAME 2 both hold 14 rows. It
-	--  is TranZit map behaviour, so it sits next to the other map-specific row.
-	--  Label and dvar unchanged (no_denizens).
-	-- ========================================================================
-	T(QolPatchesButtons, LocalClientIndex, "NO DENIZENS",        "no_denizens",         "TranZit. No denizens spawn in the fog. Any already out are left alone.")
-
-	-- ========================================================================
-	--  v2.7.2 - 3 HIT DOWN. User, 2026-08-28: *"add '3 HIT DOWN' which as the
-	--  name suggests, makes the player have the same kinda health as black ops
-	--  3 zombies and onwards"*. Caps a single zombie melee hit's damage at
-	--  maxhealth/3, so no round's melee scaling can down you in fewer than 3
-	--  hits. See zmqol_three_hit_down_install() in quality_of_life.gsc.
-	-- ========================================================================
-	T(QolPatchesButtons, LocalClientIndex, "3 HIT DOWN",         "three_hit_down",      "A zombie can never down you in fewer than 3 hits, the way Black Ops 3 does it.")
 
 	-- ========================================================================
 	--  v2.8.2 - WINTER'S HOWL INFINITE. User request 2026-08-29, for the BO1
@@ -2354,17 +2126,6 @@ CoD.OptionsSettings.CreateQolGame3Tab = function (QolGame3Tab, LocalClientIndex)
 	-- came down from the pre-game lobby after that note was written.
 
 	-- ========================================================================
-	--  v2.14.13 - THIRD PERSON. User request 2026-09-07: "put a 3rd person
-	--  toggle in the GAME 3 tab in the mod". Read once a second per player by
-	--  qol_options.gsc::qol_opt_third_person(), which drives the engine's own
-	--  setclientthirdperson() - the method stock zombies uses for its own
-	--  third-person moments (_zm.gsc::set_third_person) - never the
-	--  cheat-protected cg_thirdPerson dvar. Live both ways, and re-applied
-	--  after every spawn because stock's onplayerspawned() switches it off.
-	-- ========================================================================
-	T(QolGame3Buttons, LocalClientIndex, "THIRD PERSON", "third_person", "Play from a camera behind your character. Off is the normal first-person view.")
-
-	-- ========================================================================
 	--  v2.14.28 - KNIFE LUNGE. User request 2026-09-08: "add an option in GAME
 	--  3 called KNIFE LUNGE and by default it's set to enabled (vanilla
 	--  behaviour), or you can set it to disabled so that you can no longer
@@ -2375,23 +2136,6 @@ CoD.OptionsSettings.CreateQolGame3Tab = function (QolGame3Tab, LocalClientIndex)
 	--  second, by qol_options.gsc::qol_opt_knife_lunge().
 	-- ========================================================================
 	T(QolGame3Buttons, LocalClientIndex, "KNIFE LUNGE", "knife_lunge", "The melee charge that pulls you onto a zombie. Disable it to knife in place.")
-
-	-- ========================================================================
-	--  v2.16.14 - NO MUD SLOWDOWN. User request 2026-09-15: *"a lot of people
-	--  hate that the mud slows you down in origins, add an option so that the
-	--  mud doesn't affect you in origins and any maps so even the survival maps
-	--  as well, that way players can run their normal speed and walk their
-	--  normal speed in mud."* ENABLED is the state that changes something, the
-	--  same way NO DENIZENS and NO LAVA DAMAGE read.
-	--
-	--  📝 "AND ANY MAPS" IS ALREADY COVERED BY AN ORIGINS-ONLY FILE, and that
-	--  is not a shortcut. Mud exists on exactly one map: the stock dump has a
-	--  single "player_slow_area" line, in zm_tomb. Every Origins survival and
-	--  grief location runs that same map script, so the one row reaches all of
-	--  them. Applied by scripts\zm\zm_tomb\qol_no_mud_slow.gsc, live in both
-	--  directions mid-match.
-	-- ========================================================================
-	T(QolGame3Buttons, LocalClientIndex, "NO MUD SLOWDOWN", "no_mud_slow", "Origins mud no longer drags you down. Run and walk at full speed through it.")
 
 	-- v2.16.16 - PERMA-PERKS, moved here from GAME 1 at the user's request so
 	-- REDUCE ENGINE SLEEPS fits there. Same label, same dvar; the long note on
