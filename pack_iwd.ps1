@@ -99,7 +99,13 @@ try {
     #  REWRITTEN to images/ inside the archive, because that is the path the
     #  menu looks it up under; the separate source folder is what keeps it out
     #  of the junction.
-    $folders  = @('aitype','attachmentunique','character','fx','images_menu','maps','scripts','ui','ui_mp','weapons','xanim')
+    #  'images_camo' (Bo2-VN) - the nine Dark Matter camo_zmb_dlc2* textures
+    #  from the v2.18.0 HD Texture Pack. A dedicated server's players only
+    #  download the five mod files, never a loose images\ pack, so the
+    #  animated PaP camo has to ride inside mod.iwd to reach them. Packed under
+    #  images/ like images_menu\, and kept out of images\ for the same reason.
+    $folders  = @('aitype','attachmentunique','character','fx','images_camo','images_menu','maps','scripts','ui','ui_mp','weapons','xanim')
+
     # 'xanim' (v2.9.18-v2.10.13): raw xanims load from a mod's iwd the same way raw
     # weapon defs do (proven by the zm_ezz3.0 package, checkpoint 173). The Zap Gun's
     # 15 view anims shipped this way until v2.10.14, when the Wave Gun's 49 came in
@@ -146,6 +152,9 @@ try {
                 # images/, which is where the menu actually looks.
                 $isMenuArt = $rel -like 'images_menu/*'
                 if ($isMenuArt) { $rel = 'images/' + $rel.Substring('images_menu/'.Length) }
+                $isCamoArt = $rel -like 'images_camo/*'
+                if ($isCamoArt) { $rel = 'images/' + $rel.Substring('images_camo/'.Length) }
+
 
                 # .iwi is ALREADY a compressed texture (DXT/BC blocks). Deflating it
                 # again buys almost nothing and costs a great deal of time - images\
@@ -172,7 +181,8 @@ try {
                     $fsIn = [System.IO.File]::OpenRead($_.FullName)
                     try { $fsIn.CopyTo($es) } finally { $fsIn.Dispose() }
                 } finally { $es.Dispose() }
-                if ($isMenuArt) { [void]$packedImages.Add($_.Name) }
+                if ($isMenuArt -or $isCamoArt) { [void]$packedImages.Add($_.Name) }
+
                 $count++
             }
         }
@@ -193,7 +203,9 @@ try {
         #  The rule: an .iwi in images\ that the HD pack does not provide
         #  (installer\Mod Files\textures-manifest.txt is the pack's exact name
         #  list), or that backs a mod.ff image header, is the mod's own.
-        #  camo_zmb_dlc2* stays out, as in build.bat's step [1/9].
+        #  camo_zmb_dlc2* stays out of THIS pass, as in build.bat's step [1/9]:
+        #  the Dark Matter copies come from images_camo\ (Bo2-VN) instead.
+
         $manifest = Join-Path $rootPath 'installer\Mod Files\textures-manifest.txt'
         $imgDir   = Join-Path $rootPath 'images'
         $zaDir    = Join-Path $rootPath 'zone_assets\images'
